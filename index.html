@@ -57,8 +57,18 @@
     .modal .row { margin-top: 12px; }
     .tag { display:inline-block; padding: 6px 10px; border-radius: 999px; border:1px solid #2a2a2f; color: var(--muted); font-size: 12px; margin-top: 8px; }
 
-    /* input date escondido */
-    #datePicker { display:none; }
+    /* ✅ IMPORTANTE:
+       NÃO usar display:none no input date, senão o calendário não abre em vários celulares.
+       Deixamos invisível, mas existente/focável. */
+    #datePicker{
+      position: fixed;
+      left: -10000px;
+      top: 0;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
   </style>
 </head>
 
@@ -86,7 +96,7 @@
         <button class="ghost" id="undoBtn">↩️ Desfazer último</button>
       </div>
 
-      <!-- seletor de data (abre quando clicar no botão) -->
+      <!-- seletor de data -->
       <input type="date" id="datePicker" />
 
       <details>
@@ -168,8 +178,6 @@
   const datePicker = document.getElementById("datePicker");
   const pickDateBtn = document.getElementById("pickDateBtn");
 
-  // ===== Datas sem dor de cabeça (evita bug de fuso horário) =====
-  // Vamos guardar a data no formato "YYYY-MM-DD" (chave local).
   function toDateKey(d){
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -178,7 +186,6 @@
   }
 
   function dateKeyToDisplay(dateKey){
-    // dateKey = YYYY-MM-DD
     const [y, m, d] = dateKey.split("-").map(Number);
     const dt = new Date(y, m - 1, d);
     return dt.toLocaleDateString("pt-BR", { weekday:"short", day:"2-digit", month:"2-digit", year:"numeric" });
@@ -186,11 +193,10 @@
 
   function isFutureDateKey(dateKey){
     const todayKey = toDateKey(new Date());
-    return dateKey > todayKey; // funciona com YYYY-MM-DD
+    return dateKey > todayKey;
   }
 
   function migrateItems(items){
-    // Se algum item antigo estiver em ISO com "T", converte para YYYY-MM-DD
     let changed = false;
     const migrated = items.map(it => {
       if(typeof it?.date === "string" && it.date.includes("T")){
@@ -201,7 +207,6 @@
       return it;
     });
 
-    // remove possíveis duplicados após migração
     if(changed){
       const seen = new Set();
       const unique = [];
@@ -221,10 +226,7 @@
     const raw = localStorage.getItem(KEY);
     const items0 = raw ? JSON.parse(raw) : [];
     const { items, changed } = migrateItems(items0);
-
-    if(changed){
-      localStorage.setItem(KEY, JSON.stringify(items));
-    }
+    if(changed){ localStorage.setItem(KEY, JSON.stringify(items)); }
 
     const goal = Number(localStorage.getItem(GOAL_KEY) || 220);
     const name = String(localStorage.getItem(NAME_KEY) || "");
@@ -253,7 +255,7 @@
     subtitle.textContent = `${pct}% concluído`;
     barFill.style.width = `${pct}%`;
 
-    const last = items.slice(-14).reverse(); // mais recentes
+    const last = items.slice(-14).reverse();
     listEl.innerHTML = "";
     if(last.length === 0){
       listEl.innerHTML = `<div class="muted" style="margin-top:14px;">Sem check-ins ainda. Começa hoje 🙂</div>`;
@@ -284,7 +286,6 @@
       alert("Não dá pra marcar data futura 🙂");
       return;
     }
-
     if(items.some(x => x.date === dateKey)){
       alert("Esse dia já está marcado 🙂");
       return;
@@ -296,17 +297,15 @@
     render();
   }
 
-  // Treino de hoje
   function checkin(){
     const todayKey = toDateKey(new Date());
     addCheckinForDateKey(todayKey);
   }
 
-  // Desfazer último = remove o mais recente
   function undo(){
     const { items } = load();
     if(items.length === 0) return;
-    items.pop(); // como está ordenado, pop tira a data mais recente
+    items.pop();
     saveItems(items);
     render();
   }
@@ -352,14 +351,9 @@
     const n = String(setupName.value || "").trim();
     const g = Number(setupGoal.value || 0);
 
-    if(!n){
-      alert("Coloque seu nome 🙂");
-      return;
-    }
-    if(!Number.isFinite(g) || g <= 0){
-      alert("Coloque uma meta válida (ex.: 220)");
-      return;
-    }
+    if(!n){ alert("Coloque seu nome 🙂"); return; }
+    if(!Number.isFinite(g) || g <= 0){ alert("Coloque uma meta válida (ex.: 220)"); return; }
+
     setName(n);
     setGoal(g);
     setSetupDone();
@@ -367,24 +361,29 @@
     render();
   }
 
-  // ===== Marcar outro dia (calendário) =====
+  // ✅ Marcar outro dia
   function openDatePicker(){
     const today = new Date();
     const todayKey = toDateKey(today);
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
 
-    // máximo = hoje (não deixa escolher futuro)
     datePicker.max = todayKey;
-    // sugere ontem
     datePicker.value = toDateKey(yesterday);
 
-    // abre o seletor
+    // Chrome moderno:
+    if (typeof datePicker.showPicker === "function") {
+      datePicker.showPicker();
+      return;
+    }
+
+    // Fallback geral:
+    datePicker.focus({ preventScroll: true });
     datePicker.click();
   }
 
   datePicker.addEventListener("change", () => {
-    if(!datePicker.value) return; // value já vem no formato YYYY-MM-DD
+    if(!datePicker.value) return;
     addCheckinForDateKey(datePicker.value);
   });
 
@@ -397,7 +396,6 @@
   setupSave.addEventListener("click", initialSetupSave);
   pickDateBtn.addEventListener("click", openDatePicker);
 
-  // start
   const { setupDone } = load();
   render();
   if(!setupDone) openSetup();
