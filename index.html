@@ -4,11 +4,13 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Projeto 2026</title>
+
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0b0b0c">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
   <style>
     :root { --bg:#0b0b0c; --card:#151517; --text:#f2f2f2; --muted:#a7a7a7; }
     body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; background:var(--bg); color:var(--text); }
@@ -54,8 +56,12 @@
     .modal .muted { font-size: 13px; }
     .modal .row { margin-top: 12px; }
     .tag { display:inline-block; padding: 6px 10px; border-radius: 999px; border:1px solid #2a2a2f; color: var(--muted); font-size: 12px; margin-top: 8px; }
+
+    /* input date escondido */
+    #datePicker { display:none; }
   </style>
 </head>
+
 <body>
   <div class="wrap">
     <div class="card">
@@ -76,8 +82,12 @@
 
       <div class="row">
         <button class="primary" id="checkinBtn">✅ Fiz treino hoje</button>
+        <button class="ghost" id="pickDateBtn">📅 Marcar outro dia</button>
         <button class="ghost" id="undoBtn">↩️ Desfazer último</button>
       </div>
+
+      <!-- seletor de data (abre quando clicar no botão) -->
+      <input type="date" id="datePicker" />
 
       <details>
         <summary>Configurações (editar nome/meta, exportar)</summary>
@@ -155,9 +165,67 @@
   const setupGoal = document.getElementById("setupGoal");
   const setupSave = document.getElementById("setupSave");
 
+  const datePicker = document.getElementById("datePicker");
+  const pickDateBtn = document.getElementById("pickDateBtn");
+
+  // ===== Datas sem dor de cabeça (evita bug de fuso horário) =====
+  // Vamos guardar a data no formato "YYYY-MM-DD" (chave local).
+  function toDateKey(d){
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  function dateKeyToDisplay(dateKey){
+    // dateKey = YYYY-MM-DD
+    const [y, m, d] = dateKey.split("-").map(Number);
+    const dt = new Date(y, m - 1, d);
+    return dt.toLocaleDateString("pt-BR", { weekday:"short", day:"2-digit", month:"2-digit", year:"numeric" });
+  }
+
+  function isFutureDateKey(dateKey){
+    const todayKey = toDateKey(new Date());
+    return dateKey > todayKey; // funciona com YYYY-MM-DD
+  }
+
+  function migrateItems(items){
+    // Se algum item antigo estiver em ISO com "T", converte para YYYY-MM-DD
+    let changed = false;
+    const migrated = items.map(it => {
+      if(typeof it?.date === "string" && it.date.includes("T")){
+        const dt = new Date(it.date);
+        changed = true;
+        return { date: toDateKey(dt) };
+      }
+      return it;
+    });
+
+    // remove possíveis duplicados após migração
+    if(changed){
+      const seen = new Set();
+      const unique = [];
+      for(const it of migrated){
+        if(!it?.date) continue;
+        if(seen.has(it.date)) continue;
+        seen.add(it.date);
+        unique.push({ date: it.date });
+      }
+      unique.sort((a,b) => a.date.localeCompare(b.date));
+      return { items: unique, changed: true };
+    }
+    return { items: migrated, changed: false };
+  }
+
   function load(){
     const raw = localStorage.getItem(KEY);
-    const items = raw ? JSON.parse(raw) : [];
+    const items0 = raw ? JSON.parse(raw) : [];
+    const { items, changed } = migrateItems(items0);
+
+    if(changed){
+      localStorage.setItem(KEY, JSON.stringify(items));
+    }
+
     const goal = Number(localStorage.getItem(GOAL_KEY) || 220);
     const name = String(localStorage.getItem(NAME_KEY) || "");
     const setupDone = localStorage.getItem(SETUP_DONE_KEY) === "1";
@@ -168,11 +236,6 @@
   function setGoal(goal){ localStorage.setItem(GOAL_KEY, String(goal)); }
   function setName(name){ localStorage.setItem(NAME_KEY, name); }
   function setSetupDone(){ localStorage.setItem(SETUP_DONE_KEY, "1"); }
-
-  function fmtDate(iso){
-    const d = new Date(iso);
-    return d.toLocaleDateString("pt-BR", { weekday:"short", day:"2-digit", month:"2-digit", year:"numeric" });
-  }
 
   function render(){
     const { items, goal, name } = load();
@@ -190,7 +253,7 @@
     subtitle.textContent = `${pct}% concluído`;
     barFill.style.width = `${pct}%`;
 
-    const last = items.slice(-14).reverse();
+    const last = items.slice(-14).reverse(); // mais recentes
     listEl.innerHTML = "";
     if(last.length === 0){
       listEl.innerHTML = `<div class="muted" style="margin-top:14px;">Sem check-ins ainda. Começa hoje 🙂</div>`;
@@ -200,7 +263,7 @@
       const num = done - idx;
       const div = document.createElement("div");
       div.className = "item";
-      div.innerHTML = `<div>#${num}</div><div class="muted">${fmtDate(it.date)}</div>`;
+      div.innerHTML = `<div>#${num}</div><div class="muted">${dateKeyToDisplay(it.date)}</div>`;
       listEl.appendChild(div);
     });
   }
@@ -214,26 +277,36 @@
     setupModal.style.display = "none";
   }
 
-  // 1 check-in por dia
-  function checkin(){
+  function addCheckinForDateKey(dateKey){
     const { items } = load();
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    const iso = today.toISOString();
 
-    if(items.some(x => x.date === iso)){
-      alert("Você já marcou o treino de hoje 🙂");
+    if(isFutureDateKey(dateKey)){
+      alert("Não dá pra marcar data futura 🙂");
       return;
     }
-    items.push({ date: iso });
+
+    if(items.some(x => x.date === dateKey)){
+      alert("Esse dia já está marcado 🙂");
+      return;
+    }
+
+    items.push({ date: dateKey });
+    items.sort((a,b) => a.date.localeCompare(b.date));
     saveItems(items);
     render();
   }
 
+  // Treino de hoje
+  function checkin(){
+    const todayKey = toDateKey(new Date());
+    addCheckinForDateKey(todayKey);
+  }
+
+  // Desfazer último = remove o mais recente
   function undo(){
     const { items } = load();
     if(items.length === 0) return;
-    items.pop();
+    items.pop(); // como está ordenado, pop tira a data mais recente
     saveItems(items);
     render();
   }
@@ -253,7 +326,7 @@
       `Meta: ${goal}`,
       `Total: ${items.length}`,
       "",
-      ...items.map((x,i)=> `${i+1}. ${fmtDate(x.date)}`)
+      ...items.map((x,i)=> `${i+1}. ${dateKeyToDisplay(x.date)}`)
     ];
     const blob = new Blob([lines.join("\n")], {type:"text/plain;charset=utf-8"});
     const url = URL.createObjectURL(blob);
@@ -294,12 +367,35 @@
     render();
   }
 
+  // ===== Marcar outro dia (calendário) =====
+  function openDatePicker(){
+    const today = new Date();
+    const todayKey = toDateKey(today);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    // máximo = hoje (não deixa escolher futuro)
+    datePicker.max = todayKey;
+    // sugere ontem
+    datePicker.value = toDateKey(yesterday);
+
+    // abre o seletor
+    datePicker.click();
+  }
+
+  datePicker.addEventListener("change", () => {
+    if(!datePicker.value) return; // value já vem no formato YYYY-MM-DD
+    addCheckinForDateKey(datePicker.value);
+  });
+
+  // events
   document.getElementById("checkinBtn").addEventListener("click", checkin);
   document.getElementById("undoBtn").addEventListener("click", undo);
   document.getElementById("resetBtn").addEventListener("click", resetAll);
   document.getElementById("exportBtn").addEventListener("click", exportList);
   document.getElementById("saveBtn").addEventListener("click", saveSettings);
   setupSave.addEventListener("click", initialSetupSave);
+  pickDateBtn.addEventListener("click", openDatePicker);
 
   // start
   const { setupDone } = load();
