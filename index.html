@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Projeto 2026</title>
+  <style>
+    :root { --bg:#0b0b0c; --card:#151517; --text:#f2f2f2; --muted:#a7a7a7; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; background:var(--bg); color:var(--text); }
+    .wrap { max-width: 560px; margin: 0 auto; padding: 18px; }
+    .card { background:var(--card); border:1px solid #222; border-radius: 16px; padding: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+    h1 { font-size: 20px; margin: 0 0 6px; }
+    .muted { color:var(--muted); font-size: 13px; line-height:1.35; }
+    .big { font-size: 38px; font-weight: 800; margin: 12px 0 4px; }
+    .bar { height: 10px; border-radius: 999px; background:#2a2a2f; overflow:hidden; }
+    .bar > div { height: 100%; width: 0%; background: #ffffff; }
+    .row { display:flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+    button { flex:1; min-width: 140px; border:0; border-radius: 12px; padding: 14px 12px; font-weight: 700; cursor:pointer; }
+    .primary { background:#ffffff; color:#000; }
+    .ghost { background:transparent; color:var(--text); border:1px solid #2a2a2f; }
+    .danger { background:#ff4d4d; color:#000; }
+    .list { margin-top: 14px; }
+    .item { display:flex; justify-content:space-between; padding: 10px 0; border-bottom: 1px solid #26262b; font-size: 14px; }
+    .item:last-child { border-bottom: 0; }
+    .pill { padding: 2px 8px; border:1px solid #2a2a2f; border-radius:999px; color:var(--muted); font-size: 12px; }
+    .topline{display:flex; align-items:center; justify-content:space-between; gap:12px;}
+    input { width: 100%; padding: 10px 12px; border-radius: 12px; border:1px solid #2a2a2f; background:#0f0f12; color:var(--text); margin-top: 10px; }
+    details{ margin-top:12px; }
+    summary{ cursor:pointer; color:var(--muted); }
+    .note{ font-size:12px; color:var(--muted); margin-top:8px; }
+    .inline2 { display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px; }
+
+    /* Tela de cadastro */
+    .modalWrap {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.65);
+      display: none; align-items: center; justify-content: center;
+      padding: 16px;
+    }
+    .modal {
+      width: 100%; max-width: 520px;
+      background: #141418;
+      border: 1px solid #23232a;
+      border-radius: 18px;
+      padding: 16px;
+      box-shadow: 0 20px 50px rgba(0,0,0,.5);
+    }
+    .modal h2 { margin: 0 0 6px; font-size: 18px; }
+    .modal .muted { font-size: 13px; }
+    .modal .row { margin-top: 12px; }
+    .tag { display:inline-block; padding: 6px 10px; border-radius: 999px; border:1px solid #2a2a2f; color: var(--muted); font-size: 12px; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="topline">
+        <div>
+          <h1 id="appTitle">Projeto 2026</h1>
+          <div class="muted">
+            <span class="pill" id="userPill">Sem nome</span>
+            • Meta: <span id="goalLabel">220</span>
+          </div>
+        </div>
+        <span class="pill" id="yearPill"></span>
+      </div>
+
+      <div class="big" id="counter">0/220</div>
+      <div class="muted" id="subtitle">0% concluído</div>
+      <div class="bar"><div id="barFill"></div></div>
+
+      <div class="row">
+        <button class="primary" id="checkinBtn">✅ Fiz treino hoje</button>
+        <button class="ghost" id="undoBtn">↩️ Desfazer último</button>
+      </div>
+
+      <details>
+        <summary>Configurações (editar nome/meta, exportar)</summary>
+
+        <div class="inline2">
+          <div>
+            <div class="note">Seu nome:</div>
+            <input type="text" id="nameInput" placeholder="Ex.: Renata" />
+          </div>
+          <div>
+            <div class="note">Sua meta do ano:</div>
+            <input type="number" min="1" id="goalInput" placeholder="220" />
+          </div>
+        </div>
+
+        <div class="row">
+          <button class="ghost" id="saveBtn">Salvar</button>
+          <button class="ghost" id="exportBtn">Exportar lista</button>
+        </div>
+
+        <div class="row">
+          <button class="danger" id="resetBtn">⚠️ Zerar check-ins</button>
+        </div>
+
+        <div class="note">Dica: no iPhone, use pelo ícone da Tela de Início (Safari) para não perder dados.</div>
+      </details>
+
+      <div class="list" id="list"></div>
+    </div>
+  </div>
+
+  <!-- Cadastro inicial -->
+  <div class="modalWrap" id="setupModal">
+    <div class="modal">
+      <h2>Cadastro inicial</h2>
+      <div class="muted">Só a primeira vez. Depois é 1 toque por treino ✅</div>
+      <div class="tag">Projeto 2026</div>
+
+      <div class="note">Seu nome:</div>
+      <input id="setupName" type="text" placeholder="Ex.: Erika" />
+
+      <div class="note">Sua meta do ano:</div>
+      <input id="setupGoal" type="number" min="1" placeholder="Ex.: 220" />
+
+      <div class="row">
+        <button class="primary" id="setupSave">Salvar e começar</button>
+      </div>
+
+      <div class="note">Os dados ficam salvos apenas no seu celular.</div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const KEY = "projeto2026_checkins";
+  const GOAL_KEY = "projeto2026_goal";
+  const NAME_KEY = "projeto2026_name";
+  const SETUP_DONE_KEY = "projeto2026_setup_done";
+
+  const year = new Date().getFullYear();
+  document.getElementById("yearPill").textContent = year;
+
+  const goalLabel = document.getElementById("goalLabel");
+  const goalInput = document.getElementById("goalInput");
+  const nameInput = document.getElementById("nameInput");
+  const userPill = document.getElementById("userPill");
+
+  const counter = document.getElementById("counter");
+  const subtitle = document.getElementById("subtitle");
+  const barFill = document.getElementById("barFill");
+  const listEl = document.getElementById("list");
+
+  const setupModal = document.getElementById("setupModal");
+  const setupName = document.getElementById("setupName");
+  const setupGoal = document.getElementById("setupGoal");
+  const setupSave = document.getElementById("setupSave");
+
+  function load(){
+    const raw = localStorage.getItem(KEY);
+    const items = raw ? JSON.parse(raw) : [];
+    const goal = Number(localStorage.getItem(GOAL_KEY) || 220);
+    const name = String(localStorage.getItem(NAME_KEY) || "");
+    const setupDone = localStorage.getItem(SETUP_DONE_KEY) === "1";
+    return { items, goal, name, setupDone };
+  }
+
+  function saveItems(items){ localStorage.setItem(KEY, JSON.stringify(items)); }
+  function setGoal(goal){ localStorage.setItem(GOAL_KEY, String(goal)); }
+  function setName(name){ localStorage.setItem(NAME_KEY, name); }
+  function setSetupDone(){ localStorage.setItem(SETUP_DONE_KEY, "1"); }
+
+  function fmtDate(iso){
+    const d = new Date(iso);
+    return d.toLocaleDateString("pt-BR", { weekday:"short", day:"2-digit", month:"2-digit", year:"numeric" });
+  }
+
+  function render(){
+    const { items, goal, name } = load();
+
+    goalLabel.textContent = goal;
+    goalInput.value = goal;
+
+    nameInput.value = name;
+    userPill.textContent = name ? name : "Sem nome";
+
+    const done = items.length;
+    counter.textContent = `${done}/${goal}`;
+
+    const pct = Math.min(100, Math.round((done/goal)*100));
+    subtitle.textContent = `${pct}% concluído`;
+    barFill.style.width = `${pct}%`;
+
+    const last = items.slice(-14).reverse();
+    listEl.innerHTML = "";
+    if(last.length === 0){
+      listEl.innerHTML = `<div class="muted" style="margin-top:14px;">Sem check-ins ainda. Começa hoje 🙂</div>`;
+      return;
+    }
+    last.forEach((it, idx) => {
+      const num = done - idx;
+      const div = document.createElement("div");
+      div.className = "item";
+      div.innerHTML = `<div>#${num}</div><div class="muted">${fmtDate(it.date)}</div>`;
+      listEl.appendChild(div);
+    });
+  }
+
+  function openSetup(){
+    setupModal.style.display = "flex";
+    setupName.focus();
+  }
+
+  function closeSetup(){
+    setupModal.style.display = "none";
+  }
+
+  // 1 check-in por dia
+  function checkin(){
+    const { items } = load();
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const iso = today.toISOString();
+
+    if(items.some(x => x.date === iso)){
+      alert("Você já marcou o treino de hoje 🙂");
+      return;
+    }
+    items.push({ date: iso });
+    saveItems(items);
+    render();
+  }
+
+  function undo(){
+    const { items } = load();
+    if(items.length === 0) return;
+    items.pop();
+    saveItems(items);
+    render();
+  }
+
+  function resetAll(){
+    if(!confirm("Zerar TODOS os check-ins?")) return;
+    localStorage.removeItem(KEY);
+    render();
+  }
+
+  function exportList(){
+    const { items, goal, name } = load();
+    const who = name ? name : "Sem nome";
+    const lines = [
+      `Projeto 2026`,
+      `Nome: ${who}`,
+      `Meta: ${goal}`,
+      `Total: ${items.length}`,
+      "",
+      ...items.map((x,i)=> `${i+1}. ${fmtDate(x.date)}`)
+    ];
+    const blob = new Blob([lines.join("\n")], {type:"text/plain;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `projeto-2026-${who.replace(/\s+/g,'_')}-${year}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function saveSettings(){
+    const g = Number(goalInput.value || 220);
+    const n = String(nameInput.value || "").trim();
+    if(!Number.isFinite(g) || g <= 0){ alert("Meta inválida"); return; }
+    setGoal(g);
+    setName(n);
+    setSetupDone();
+    render();
+    alert("Salvo ✅");
+  }
+
+  function initialSetupSave(){
+    const n = String(setupName.value || "").trim();
+    const g = Number(setupGoal.value || 0);
+
+    if(!n){
+      alert("Coloque seu nome 🙂");
+      return;
+    }
+    if(!Number.isFinite(g) || g <= 0){
+      alert("Coloque uma meta válida (ex.: 220)");
+      return;
+    }
+    setName(n);
+    setGoal(g);
+    setSetupDone();
+    closeSetup();
+    render();
+  }
+
+  document.getElementById("checkinBtn").addEventListener("click", checkin);
+  document.getElementById("undoBtn").addEventListener("click", undo);
+  document.getElementById("resetBtn").addEventListener("click", resetAll);
+  document.getElementById("exportBtn").addEventListener("click", exportList);
+  document.getElementById("saveBtn").addEventListener("click", saveSettings);
+  setupSave.addEventListener("click", initialSetupSave);
+
+  // start
+  const { setupDone } = load();
+  render();
+  if(!setupDone) openSetup();
+})();
+</script>
+</body>
+</html>
